@@ -1,0 +1,221 @@
+-- Newsnktroller, but with markets listed so that we can make them snk markets in constructor
+Macro Flywheelsnktroller price=1.0 borrowRate=0.000005 snkInitAmount=5000000e18
+    Unitroller Deploy
+    PriceOracle Deploy Fixed price
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero)
+    ----g2
+    snktrollerImpl Deploy ScenarioG2 snktrollerScenG2
+    Unitroller SetPendingImpl snktrollerScenG2
+    snktrollerImpl snktrollerScenG2 BecomeG2
+    --list some tokens
+    snktroller SetPriceOracle (PriceOracleProxy Address)
+    snktroller SetMaxAssets 20
+    snktroller SetCloseFactor 0.5
+    snktroller LiquidationIncentive 1.1
+    NewCToken ZRX cZRX
+    NewCToken BAT cBAT
+    Support cZRX collateralFactor:0.5
+    Support cBAT collateralFactor:0.5
+    -- final
+    snktrollerImpl Deploy ScenarioG3 snktrollerScen
+    Unitroller SetPendingImpl snktrollerScen
+    snktrollerImpl snktrollerScen BecomeG3 1e18 [cZRX cBAT]
+    Erc20 Deploy Standard snk "snk Token" 18
+    Give (Address snktroller) snkInitAmount snk
+    snktroller Send "setsnkAddress(address)" (Address snk)
+
+Macro InitSpeeds
+    Prep Geoff 100e18 ZRX cZRX
+    Mint Geoff 50e18 cZRX--tokenbalance = 50e18 / 2e9 = 2.5e10
+    Prep Coburn Some BAT cBAT
+    Mint Coburn 6e18 cBAT--tokenbalance = 6e18 / 2e9 = 3e9
+    EnterMarkets Coburn cBAT
+    Borrow Coburn 1e18 cZRX
+    snktroller RefreshsnkSpeeds
+
+Test "Accrue snk during a mint"
+    Flywheelsnktroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Mint Geoff 1e18 cZRX
+    -- new index = initVal + deltaBlocks * supplySpeed * 1e36 / totalSupply
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 2.5e10 = 1.2000000000001e49
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Assert Equal (snktroller snkSupplyState cZRX "index") 1.2000000000001e49
+    Assert Equal (snktroller snkSupplyState cZRX "block") 300000
+    Assert Equal (Erc20 snk TokenBalance Geoff) 300000e18
+    Assert Equal (snktroller snkSupplierIndex cZRX Geoff) 1.2000000000001e49
+
+Test "Accrue snk during a borrow"
+    Flywheelsnktroller
+    InitSpeeds
+    snktroller FastForward 300000 Blocks
+    Assert Equal (snktroller snkAccrued Coburn) 0
+    Borrow Coburn 0.1e18 cZRX
+    -- new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 1e18 =  3.00001e41
+    Assert Equal (snktroller snkAccrued Coburn) 0
+    Assert Equal (snktroller snkBorrowState cZRX "index") 3.00001e41
+    Assert Equal (snktroller snkBorrowState cZRX "block") 300000
+    Assert Equal (Erc20 snk TokenBalance Coburn) 300000e18
+    Assert Equal (snktroller snkBorrowerIndex cZRX Coburn) 3.00001e41
+
+Test "Accrue snk during a redeem"
+    Flywheelsnktroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Redeem Geoff 1e9 cZRX
+    -- new index = initVal + deltaBlocks * supplySpeed * 1e36 / totalSupply
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 2.5e10 = 1.2000000000001e49
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Assert Equal (snktroller snkSupplyState cZRX "index") 1.2000000000001e49
+    Assert Equal (snktroller snkSupplyState cZRX "block") 300000
+    Assert Equal (Erc20 snk TokenBalance Geoff) 300000e18
+    Assert Equal (snktroller snkSupplierIndex cZRX Geoff) 1.2000000000001e49
+
+Test "Accrue snk during a repayBorrow"
+    Flywheelsnktroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Prep Coburn 0.5e18 ZRX cZRX
+    RepayBorrow Coburn 0.5e18 cZRX
+    -- new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 1e18 =  3.00001e41
+    Assert Equal (snktroller snkAccrued Coburn) 0
+    Assert Equal (snktroller snkBorrowState cZRX "index") 3.00001e41
+    Assert Equal (snktroller snkBorrowState cZRX "block") 300000
+    Assert Equal (Erc20 snk TokenBalance Coburn) 300000e18
+    Assert Equal (snktroller snkBorrowerIndex cZRX Coburn) 3.00001e41
+
+Test "Accrue snk during a repayBorrowBehalf of 0"
+    Flywheelsnktroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    -- confirm we can init all flywheel accounts for free
+    RepayBorrowBehalf Jared Coburn 0 cZRX
+    -- new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 1e18 = 3.00001e41
+    Assert Equal (snktroller snkAccrued Coburn) 0
+    Assert Equal (snktroller snkBorrowState cZRX "index") 3.00001e41
+    Assert Equal (snktroller snkBorrowState cZRX "block") 300000
+    Assert Equal (Erc20 snk TokenBalance Coburn) 300000e18
+    Assert Equal (snktroller snkBorrowerIndex cZRX Coburn) 3.00001e41
+
+Test "Accrue snk during a liquidation"
+    Flywheelsnktroller
+    InitSpeeds
+    Assert Equal (snktroller snkSpeed cZRX) 1e18
+    Assert Equal (snktroller snkSpeed cBAT) 0
+    --coburn zrx borrow, bat supply. geoff zrx supply
+    FastForward 600000 Blocks--1e18 borrow * (1 + 600000 * 0.000005) = 3.5e18 borrow > 6e18 collateral * 0.5 CF
+    Prep Geoff Some ZRX cZRX
+    From Geoff (CToken cZRX Liquidate Coburn cBAT 0.5e18)
+    -- zrx borrow index is updated and snk distributed
+    -- * new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- * new index = 1e36 + 600000 * 1e18 * 1e36 / 1e18 = 6.00001E41
+    Assert Equal (snktroller snkBorrowState cZRX "index") 6.00001e41
+    Assert Equal (snktroller snkBorrowState cZRX "block") 600000
+    -- zrx supply index isnt updated and snk isnt distributed for zrx supply
+    Assert Equal (snktroller snkSupplyState cZRX "index") 1e36
+    Assert Equal (snktroller snkSupplyState cZRX "block") 0
+    Assert Equal (snktroller snkSupplierIndex cZRX Geoff) 1e36--no change, minted in init
+    -- bat supply/borrow index is not updated, since there is no snk speed
+    Assert Equal (snktroller snkSupplyState cBAT "index") 1e36
+    Assert Equal (snktroller snkSupplyState cBAT "block") 600000
+    -- neither is borrow state. block is 0 because update fn is never even called
+    Assert Equal (snktroller snkBorrowState cBAT "index") 1e36
+    Assert Equal (snktroller snkBorrowState cBAT "block") 0
+    --
+    Assert Equal (snktroller snkSupplierIndex cBAT Coburn) 1e36
+    Assert Equal (snktroller snkBorrowerIndex cZRX Coburn) 6.00001e41
+    Assert Equal (Erc20 snk TokenBalance Coburn) 600000e18
+    Assert Equal (snktroller snkAccrued Coburn) 0
+    --
+    Assert Equal (snktroller snkSupplierIndex cBAT Geoff) 1e36
+    Assert Equal (Erc20 snk TokenBalance Geoff) 0
+    Assert Equal (snktroller snkAccrued Geoff) 0
+
+Test "Accrue snk during a transfer"
+    Flywheelsnktroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (Erc20 snk TokenBalance Geoff) 0
+    Assert Equal (snktroller snkSupplierIndex cZRX Geoff) 1e36
+    Transfer Geoff Jared 2.5e10 cZRX
+    -- new index = initVal + deltaBlocks * supplySpeed * 1e36 / totalSupply
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 2.5e10 = 1.2000000000001e49
+    Assert Equal (Erc20 snk TokenBalance Geoff) 300000e18
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Assert Equal (snktroller snkSupplyState cZRX "index") 1.2000000000001e49
+    Assert Equal (snktroller snkSupplyState cZRX "block") 300000
+    Assert Equal (snktroller snkSupplierIndex cZRX Geoff) 1.2000000000001e49
+    --
+    Assert Equal (snktroller snkAccrued Jared) 0
+    Assert Equal (snktroller snkSupplyState cZRX "index") 1.2000000000001e49
+    Assert Equal (snktroller snkSupplyState cZRX "block") 300000
+    Assert Equal (snktroller snkSupplierIndex cZRX Jared) 1.2000000000001e49
+
+Test "Accrues correctly when market is added, deactivated, and activated again"
+    Flywheelsnktroller
+    InitSpeeds
+    NewCToken DAI cDAI
+    --
+    Support cDAI collateralFactor:0.5
+    snktroller AddsnkMarkets cDAI
+    Assert Equal (snktroller GetsnkMarkets) [(Address cZRX) (Address cBAT) (Address cDAI)]
+    Prep Jared Some DAI cDAI
+    Mint Jared 6e18 cDAI
+    EnterMarkets Geoff cZRX
+    Borrow Geoff 0.5e18 cDAI
+    Borrow Coburn 0.5e18 cDAI
+    snktroller RefreshsnkSpeeds
+    Assert Equal (snktroller snkSpeed cZRX) 0.5e18
+    Assert Equal (snktroller snkSpeed cDAI) 0.5e18
+    --
+    FastForward 100 Blocks
+    snktroller DropsnkMarket cDAI
+    snktroller Claimsnk Geoff
+    Assert Equal (Erc20 snk TokenBalance Geoff) 75e18--half of cdai, all of zrx(.25e18 + .5e18) * 100
+    Assert Equal (snktroller GetsnkMarkets) [(Address cZRX) (Address cBAT)]
+    Assert Equal (snktroller snkSpeed cZRX) 1e18
+    Assert Equal (snktroller snkSpeed cDAI) 0
+    --
+    FastForward 100 Blocks
+    snktroller Claimsnk Geoff
+    Assert Equal (Erc20 snk TokenBalance Geoff) 175e18-- += 1e18 * 100
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    --
+    snktroller AddsnkMarkets cDAI
+    FastForward 100 Blocks
+    snktroller Claimsnk Geoff
+    Assert Equal (Erc20 snk TokenBalance Geoff) 250e18--half of cdai, all of zrx. += (.25 + .5) * 100
+    Assert Equal (snktroller snkAccrued Geoff) 0
+
+Test "Transfersnk handles running out of snk in snktroller correctly"
+    Flywheelsnktroller price:1.0 borrowRate:0.000005 snkInitAmount:1e18
+    InitSpeeds
+    FastForward 2 Blocks
+    snktroller Claimsnk Geoff
+    Assert Equal (snktroller snkAccrued Geoff) 2e18
+    Assert Equal (Erc20 snk TokenBalance Geoff) 0
+    Give (Address snktroller) 1e18 snk
+    snktroller Claimsnk Geoff
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Assert Equal (Erc20 snk TokenBalance Geoff) 2e18
+
+Test "Changing snk rate continues to distribute at the correct speed"
+    Flywheelsnktroller
+    InitSpeeds
+    --
+    Assert Equal (snktroller snkSpeed cZRX) 1e18
+    FastForward 10 Blocks
+    snktroller SetsnkRate 2e18
+    Assert Equal (snktroller snkSpeed cZRX) 2e18
+    FastForward 10 Blocks
+    snktroller Claimsnk Geoff
+    Assert Equal (snktroller snkAccrued Geoff) 0
+    Assert Equal (Erc20 snk TokenBalance Geoff) 30e18

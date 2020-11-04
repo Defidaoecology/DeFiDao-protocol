@@ -1,0 +1,26 @@
+-- Sets for `_setsnktroller` Admin Function
+
+Test "Set snktroller"
+    Newsnktroller
+    NewCToken ZRX cZRX
+    Assert Equal (CToken cZRX snktroller) (Unitroller Address)
+    snktrollerImpl Deploy Scenario Newsnktroller
+    From Root (CToken cZRX Setsnktroller (snktrollerImpl Newsnktroller Address))
+    -- TODO: Fix log assertion
+    -- Assert Log "Newsnktroller" ("oldsnktroller" (Unitroller Address)) ("newsnktroller" (snktrollerImpl Newsnktroller Address))
+    Assert Equal (CToken cZRX snktroller) (snktrollerImpl Newsnktroller Address)
+
+Test "Fail when is not a snktroller"
+    Newsnktroller
+    NewCToken ZRX cZRX
+    Invariant Remains (CToken cZRX snktroller) (Unitroller Address)
+    AllowFailures
+    From Root (CToken cZRX Setsnktroller (PriceOracle Address))
+    Assert Revert
+
+Test "Fail to set snktroller as not admin"
+    Newsnktroller
+    NewCToken ZRX cZRX
+    AllowFailures
+    From Geoff (CToken cZRX Setsnktroller (PriceOracle Address))
+    Assert Failure UNAUTHORIZED SET_snkTROLLER_OWNER_CHECK
