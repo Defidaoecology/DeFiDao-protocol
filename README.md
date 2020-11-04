@@ -97,12 +97,12 @@ Jest contract tests are defined under the [tests directory](https://github.com/D
 Integration Specs
 -----------------
 
-There are additional tests under the [spec/scenario](https://github.com/Defidaoecology/DeFiDao-protocol/tree/master/spec/scenario) folder. These are high-level integration tests based on the scenario runner depicted above. The aim of these tests is to be highly literate and have high coverage in the interaction of contracts.
+There are additional tests under the [spec/scenario](https://github.com/Defidaoecology/DeFiDao-protocol/) folder. These are high-level integration tests based on the scenario runner depicted above. The aim of these tests is to be highly literate and have high coverage in the interaction of contracts.
 
 Formal Verification Specs
 -------------------------
 
-The DeFiDao Protocol has a number of formal verification specifications, powered by [Certora](https://www.certora.com/). You can find details in the [spec/formal](https://github.com/Defidaoecology/DeFiDao-protocol/tree/master/spec/formal) folder. The Certora Verification Language (CVL) files included are specifications, which when with the Certora CLI tool, produce formal proofs (or counter-examples) that the code of a given contract exactly matches that specification.
+The DeFiDao Protocol has a number of formal verification specifications, powered by [Certora](https://www.certora.com/). You can find details in the [spec/formal](https://github.com/Defidaoecology/DeFiDao-protocol/) folder. The Certora Verification Language (CVL) files included are specifications, which when with the Certora CLI tool, produce formal proofs (or counter-examples) that the code of a given contract exactly matches that specification.
 =======
 
 Testing
